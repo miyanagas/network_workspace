@@ -4,7 +4,7 @@
 #include "mynet.h"
 #include <arpa/inet.h>
 
-#define BUFSIZE 512   /* バッファサイズ */
+#define BUFSIZE 20   /* バッファサイズ */
 
 void show_adrsinfo(struct sockaddr_in *adrs_in);
 
