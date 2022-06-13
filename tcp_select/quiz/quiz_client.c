@@ -40,7 +40,11 @@ void quiz_client(char* servername, int port_number)
 
     if( FD_ISSET(sock, &readfds) ){
       /* サーバから文字列を受信する */
-      strsize = Recv(sock, r_buf, R_BUFSIZE-1, 0);
+      if((strsize = Recv(sock, r_buf, R_BUFSIZE-1, 0)) == 0){
+        printf("Server is down.\n");
+        close(sock);
+        return;
+      }
       r_buf[strsize] = '\0';
       printf("%s",r_buf);
       fflush(stdout); /* バッファの内容を強制的に出力 */

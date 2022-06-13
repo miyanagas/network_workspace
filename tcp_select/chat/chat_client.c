@@ -39,13 +39,13 @@ void chat_client(char* servername, int port_number)
       /* サーバから文字列を受信する */
       strsize = Recv(sock, r_buf, R_BUFSIZE-1, 0);
       r_buf[strsize] = '\0';
-      printf("%s",r_buf);
-      fflush(stdout); /* バッファの内容を強制的に出力 */
       if(strcmp(r_buf,"Bye") == 0){
-        printf("\n");
+        printf("Bye\n");
         close(sock);
         return;
       }
+      printf("%-s",r_buf);
+      fflush(stdout); /* バッファの内容を強制的に出力 */
     }
   }
 }
