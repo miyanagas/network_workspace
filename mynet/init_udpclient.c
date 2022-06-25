@@ -28,3 +28,11 @@ void set_sockaddr_in(struct sockaddr_in *server_adrs,
   server_adrs->sin_port = htons(port_number);
   memcpy(&(server_adrs->sin_addr), server_host->h_addr, server_host->h_length);
 }
+
+void set_sockaddr_in_broadcast(struct  sockaddr_in *server_adrs, in_port_t port_number)
+{
+  memset(server_adrs, 0, sizeof(struct sockaddr_in));
+  server_adrs->sin_family = AF_INET;
+  server_adrs->sin_port = htons(port_number);
+  server_adrs->sin_addr.s_addr = htonl(INADDR_BROADCAST);
+}
