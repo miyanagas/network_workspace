@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
     for(i = 0;(i < 3) && (mode != 'C');i++){
         /* 「HELO」パケットを待ち受けポートに対してブロードキャストする（最大3回送信） */
         Sendto(sock, "HELO", 5, 0, (struct sockaddr *)&broadcast_adrs, sizeof(broadcast_adrs) );
-        printf("-");
+        printf("----------");
         fflush(stdout);
 
         for(;;){
@@ -79,10 +79,11 @@ int main(int argc, char *argv[])
             
             if( select( sock+1, &readfds, NULL, NULL, &timeout)==0 ) break;
 
+            /* 「HERE」パケットの受信 */
             from_len = sizeof(from_adrs);
             strsize = Recvfrom(sock, r_buf, BUFSIZE-1, 0, (struct sockaddr *)&from_adrs, &from_len);
             r_buf[strsize] = '\0';
-            printf("[%s] %s\n",inet_ntoa(from_adrs.sin_addr), r_buf);
+            printf("\n[%s] %s\n",inet_ntoa(from_adrs.sin_addr), r_buf);
 
             /* 「HERE」パケットを受信したら、クライアントとして動作する */
             if(strcmp(r_buf,"HERE") == 0){
@@ -100,7 +101,7 @@ int main(int argc, char *argv[])
         chat_client(from_adrs, port_number, username);
         break;
     case 'S':
-        printf("Server: start up.\n");
+        printf("\nServer startup:)\n");
         chat_server(port_number, username);
         break;
     }

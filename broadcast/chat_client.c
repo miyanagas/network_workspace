@@ -1,9 +1,9 @@
 #include "chat.h"
 
-#define S_BUFSIZE 495 /*  */
-#define R_BUFSIZE 511 /*  */
+#define S_BUFSIZE POST_BUFSIZE /* 送信バッファサイズ */
+#define R_BUFSIZE MESG_BUFSIZE /* 受信バッファサイズ */
 
-/*  */
+/* クライアントのメッセージをサーバに送信する関数 */
 static int post_message(int sock, char *mesg);
 
 void chat_client(struct sockaddr_in server_adrs, in_port_t port_number, char *username){
@@ -22,8 +22,8 @@ void chat_client(struct sockaddr_in server_adrs, in_port_t port_number, char *us
         exit_errmesg("connect()");
     }
 
-    /*  */
-    snprintf(s_buf, USERNAME_LEN+5, "JOIN %s", username);
+    /* ユーザの参加をサーバに知らせる */
+    snprintf(s_buf, JOIN_BUFSIZE, "JOIN %s", username);
     Send(sock, s_buf, strlen(s_buf), 0);
 
     /* ビットマスクの準備 */
@@ -38,6 +38,7 @@ void chat_client(struct sockaddr_in server_adrs, in_port_t port_number, char *us
         select( sock+1, &readfds, NULL, NULL, NULL );
 
         if(FD_ISSET(sock, &readfds)){
+            /* MESGパケットの受信と表示 */
             strsize = Recv(sock, r_buf, R_BUFSIZE-1, 0);
             r_buf[strsize] = '\0';
             if(strncmp(r_buf, "MESG", 4) == 0){
@@ -46,7 +47,8 @@ void chat_client(struct sockaddr_in server_adrs, in_port_t port_number, char *us
         }
 
         if(FD_ISSET(0, &readfds)){
-            fgets(s_buf, S_BUFSIZE-5, stdin);
+            /* メッセージ（POSTまたはQUITパケット）の送信 */
+            fgets(s_buf, MESG_LEN, stdin);
             if(post_message(sock, chop_nl(s_buf)) == -1) return;
         }
     }
@@ -58,11 +60,13 @@ static int post_message(int sock, char *mesg)
     char post_message[S_BUFSIZE];
 
     if(strcmp(mesg, "QUIT") == 0){
+        /* QUITパケットの送信 */
         Send(sock, "QUIT", 5, 0);
         close(sock);
         return (-1);
     }
     else{
+        /* POSTパケットの送信 */
         snprintf(post_message, S_BUFSIZE, "POST %s", mesg);
         Send(sock, post_message, strlen(post_message), 0);
         return (0);
