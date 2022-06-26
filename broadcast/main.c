@@ -6,8 +6,8 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 
-#define USERNAME_LEN 16
-#define BUFSIZE 10
+#define USERNAME_LEN 16 /* ユーザ名の長さ（英文字15字以内） */
+#define BUFSIZE 10 /* バッファサイズ */
 #define DEFAULT_PORT 50001 /* ポート番号既定値 */
 
 extern char *optarg;
@@ -28,6 +28,7 @@ int main(int argc, char *argv[])
     int i, strsize;
     char mode = 'S';
 
+    /* コマンドラインのオプション指定 */
     in_port_t port_number=DEFAULT_PORT;
     char username[USERNAME_LEN];
     int c;
@@ -38,7 +39,7 @@ int main(int argc, char *argv[])
         if( c == -1 ) break;
         
         switch( c ){
-        case 'n' :
+        case 'n' : /* ユーザ名の指定 */
             snprintf(username, USERNAME_LEN, "%s", optarg);
             break;
         case 'p':  /* ポート番号の指定 */
@@ -68,10 +69,9 @@ int main(int argc, char *argv[])
     FD_ZERO(&mask);
     FD_SET(sock, &mask);
 
-    /* サーバから文字列を受信して表示 */
     for(i = 0;(i < 3) && (mode != 'C');i++){
 
-        /* 文字列をサーバに送信する */
+        /* 「HELO」パケットを待ち受けポートに対してブロードキャストする（最大3回送信） */
         Sendto(sock, "HELO", strlen("HELO"), 0, (struct sockaddr *)&broadcast_adrs, sizeof(broadcast_adrs) );
         printf("-");
 
@@ -88,6 +88,7 @@ int main(int argc, char *argv[])
             r_buf[strsize] = '\0';
             printf("[%s] %s\n",inet_ntoa(from_adrs.sin_addr), r_buf);
 
+            /* 「HERE」パケットを受信したら、クライアントとして動作する */
             if(strcmp(r_buf,"HERE") == 0){
                 mode = 'C';
                 break;
