@@ -1,13 +1,9 @@
-#include "mynet.h"
 #include "chat.h"
-#include <stdlib.h>
 #include <unistd.h>
-#include <sys/select.h>
 #include <sys/time.h>
 #include <arpa/inet.h>
 
-#define USERNAME_LEN 16
-#define BUFSIZE 10
+#define BUFSIZE 5
 #define DEFAULT_PORT 50001 /* ポート番号既定値 */
 
 extern char *optarg;
@@ -72,8 +68,9 @@ int main(int argc, char *argv[])
     for(i = 0;(i < 3) && (mode != 'C');i++){
 
         /* 文字列をサーバに送信する */
-        Sendto(sock, "HELO", strlen("HELO"), 0, (struct sockaddr *)&broadcast_adrs, sizeof(broadcast_adrs) );
+        Sendto(sock, "HELO", 5, 0, (struct sockaddr *)&broadcast_adrs, sizeof(broadcast_adrs) );
         printf("-");
+        fflush(stdout);
 
         for(;;){
             /* 受信データの有無をチェック */

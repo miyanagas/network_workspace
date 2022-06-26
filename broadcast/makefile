@@ -4,7 +4,7 @@
 MYLIBDIR=../mynet
 MYLIB=-lmynet
 CFLAGS=-I${MYLIBDIR} -L${MYLIBDIR}
-OBJS=main.o chat_server.o chat_client.o chat_tcp_common.o
+OBJS=main.o chat_server.o chat_client.o
 
 all: chat
 

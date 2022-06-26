@@ -1,9 +1,6 @@
-#include "mynet.h"
 #include "chat.h"
-#include <sys/select.h>
 
-#define BUFSIZE 494
-#define USERNAME_LEN 16
+#define MESG_BUFSIZE 495
 
 /* 各クライアントのユーザ情報を格納する構造体の定義 */
 typedef struct{
@@ -28,7 +25,7 @@ void chat_server(in_port_t port_number, char *my_username)
     int sock, sock_listen, sock_accepted, large_sd;
     fd_set mask, readfds;
 
-    char r_buf[BUFSIZE], s_buf[BUFSIZE];
+    char buf[MESG_BUFSIZE];
     int strsize, client_id;
 
     sock = init_udpserver(port_number);
@@ -58,9 +55,10 @@ void chat_server(in_port_t port_number, char *my_username)
 
         if(FD_ISSET(sock, &readfds)){
             from_len = sizeof(from_adrs);
-            strsize = Recvfrom(sock, r_buf, BUFSIZE-1, 0, (struct sockaddr *)&from_adrs, &from_len);
-            if(strcmp(r_buf, "HELO") == 0){
-                Sendto(sock, "HERE", strlen("HERE"), 0, (struct sockaddr *)&from_adrs, sizeof(from_adrs));
+            strsize = Recvfrom(sock, buf, 4, 0, (struct sockaddr *)&from_adrs, &from_len);
+            buf[strsize] = '\0';
+            if(strcmp(buf, "HELO") == 0){
+                Sendto(sock, "HERE", 5, 0, (struct sockaddr *)&from_adrs, sizeof(from_adrs));
             }
         }
 
@@ -80,8 +78,8 @@ void chat_server(in_port_t port_number, char *my_username)
         }
 
         if(FD_ISSET(0, &readfds)){
-            fgets(s_buf, BUFSIZE, stdin);
-            send_message(s_buf, my_username, -1);
+            fgets(buf, MESG_BUFSIZE-5, stdin);
+            send_message(buf, my_username, -1);
         }
 
     }
@@ -89,10 +87,10 @@ void chat_server(in_port_t port_number, char *my_username)
 
 static void client_login(int sock)
 {
-    char r_buf[BUFSIZE];
+    char r_buf[USERNAME_LEN+5];
     int client_id, strsize;
 
-    strsize=Recv(sock, r_buf, BUFSIZE-1, 0);
+    strsize=Recv(sock, r_buf, USERNAME_LEN+4, 0);
     r_buf[strsize]='\0';
     if(strncmp(r_buf, "JOIN", 4) == 0){
         printf("%s\n", r_buf);
@@ -114,12 +112,12 @@ static void client_login(int sock)
 static int receive_message(int sock, int post_client)
 {
 
-    char buf[BUFSIZE];
+    char r_buf[MESG_BUFSIZE];
     int strsize, client_id;
 
-    strsize=Recv(sock, buf, BUFSIZE-1, 0);
-    buf[strsize]='\0';
-    if(strcmp(buf, "QUIT") == 0){
+    strsize=Recv(sock, r_buf, MESG_BUFSIZE-1, 0);
+    r_buf[strsize]='\0';
+    if(strcmp(r_buf, "QUIT") == 0){
         if(sock == Max_sd){
             Max_sd = 0;
         }
@@ -127,8 +125,8 @@ static int receive_message(int sock, int post_client)
         client_logout(post_client);
         return (-1);
     }
-    else if(strncmp(buf, "POST", 4) == 0){
-        send_message(&(buf[5]), Client[post_client].name, post_client);
+    else if(strncmp(r_buf, "POST", 4) == 0){
+        send_message(&(r_buf[5]), Client[post_client].name, post_client);
     }
 
     return (0);
@@ -158,13 +156,13 @@ static void client_logout(int logout_client)
 static void send_message(char *mesg, char *username, int post_client)
 {
     int client_id;
-    char send_message[BUFSIZE];
+    char send_mesg[MESG_BUFSIZE+USERNAME_LEN+1];
 
-    snprintf(send_message, BUFSIZE, "MESG [%s]%s", username, mesg);
+    snprintf(send_mesg, MESG_BUFSIZE+USERNAME_LEN+1, "MESG [%s]%s", username, mesg);
 
     for( client_id = 0; client_id < N_client; client_id++){
         if(client_id == post_client) continue;
-        Send(Client[client_id].sock, send_message, strlen(send_message), 0);
+        Send(Client[client_id].sock, send_mesg, strlen(send_mesg), 0);
     }
 
 }
