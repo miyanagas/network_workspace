@@ -3,12 +3,7 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 
-<<<<<<< HEAD
-#define BUFSIZE 5
-=======
-#define USERNAME_LEN 16 /* ユーザ名の長さ（英文字15字以内） */
-#define BUFSIZE 10 /* バッファサイズ */
->>>>>>> a5d7f78b7c7e888433c5aab8544eeb7f7fd2803d
+#define BUFSIZE 5 /* バッファサイズ */
 #define DEFAULT_PORT 50001 /* ポート番号既定値 */
 
 extern char *optarg;
@@ -71,14 +66,8 @@ int main(int argc, char *argv[])
     FD_SET(sock, &mask);
 
     for(i = 0;(i < 3) && (mode != 'C');i++){
-
-<<<<<<< HEAD
-        /* 文字列をサーバに送信する */
-        Sendto(sock, "HELO", 5, 0, (struct sockaddr *)&broadcast_adrs, sizeof(broadcast_adrs) );
-=======
         /* 「HELO」パケットを待ち受けポートに対してブロードキャストする（最大3回送信） */
-        Sendto(sock, "HELO", strlen("HELO"), 0, (struct sockaddr *)&broadcast_adrs, sizeof(broadcast_adrs) );
->>>>>>> a5d7f78b7c7e888433c5aab8544eeb7f7fd2803d
+        Sendto(sock, "HELO", 5, 0, (struct sockaddr *)&broadcast_adrs, sizeof(broadcast_adrs) );
         printf("-");
         fflush(stdout);
 
