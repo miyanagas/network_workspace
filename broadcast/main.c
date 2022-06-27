@@ -31,11 +31,11 @@ int main(int argc, char *argv[])
 
     opterr = 0;
     while(1){
-        c = getopt(argc, argv, "n:p:h");
+        c = getopt(argc, argv, "u:p:h");
         if( c == -1 ) break;
         
         switch( c ){
-        case 'n' : /* ユーザ名の指定 */
+        case 'u' : /* ユーザ名の指定 */
             snprintf(username, USERNAME_LEN, "%s", optarg);
             break;
         case 'p':  /* ポート番号の指定 */
@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
         case '?' :
             fprintf(stderr,"Unknown option '%c'\n", optopt);
         case 'h' :
-            fprintf(stderr,"Usage: %s -n username -p port_number\n", argv[0]);
+            fprintf(stderr,"Usage: %s -u username [-p port_number]\n", argv[0]);
             exit(EXIT_FAILURE);
             break;
         }
@@ -67,15 +67,15 @@ int main(int argc, char *argv[])
 
     for(i = 0;(i < 3) && (mode != 'C');i++){
         /* 「HELO」パケットを待ち受けポートに対してブロードキャストする（最大3回送信） */
-        Sendto(sock, "HELO", 5, 0, (struct sockaddr *)&broadcast_adrs, sizeof(broadcast_adrs) );
+        Sendto(sock, "HELO", 4, 0, (struct sockaddr *)&broadcast_adrs, sizeof(broadcast_adrs) );
         printf("----------");
         fflush(stdout);
 
         for(;;){
             /* 受信データの有無をチェック */
             readfds = mask;
-            timeout.tv_sec = 10;
-            timeout.tv_usec = 0;
+            timeout.tv_sec = 2;
+            timeout.tv_usec = 5;
             
             if( select( sock+1, &readfds, NULL, NULL, &timeout)==0 ) break;
 
@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
             from_len = sizeof(from_adrs);
             strsize = Recvfrom(sock, r_buf, BUFSIZE-1, 0, (struct sockaddr *)&from_adrs, &from_len);
             r_buf[strsize] = '\0';
-            printf("\n[%s] %s\n",inet_ntoa(from_adrs.sin_addr), r_buf);
+            printf("\nINFO Connected to Server [%s]\n",inet_ntoa(from_adrs.sin_addr));
 
             /* 「HERE」パケットを受信したら、クライアントとして動作する */
             if(strcmp(r_buf,"HERE") == 0){

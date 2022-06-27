@@ -42,13 +42,13 @@ void chat_client(struct sockaddr_in server_adrs, in_port_t port_number, char *us
             strsize = Recv(sock, r_buf, R_BUFSIZE-1, 0);
             r_buf[strsize] = '\0';
             if(strncmp(r_buf, "MESG", 4) == 0){
-                printf("%s\n", r_buf);
+                printf("%s\n", chop_nl(&(r_buf[5])));
             }
         }
 
         if(FD_ISSET(0, &readfds)){
             /* メッセージ（POSTまたはQUITパケット）の送信 */
-            fgets(s_buf, MESG_LEN, stdin);
+            fgets(s_buf, MESG_LEN+1, stdin);
             if(post_message(sock, chop_nl(s_buf)) == -1) return;
         }
     }
