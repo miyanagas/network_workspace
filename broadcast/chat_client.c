@@ -1,7 +1,7 @@
 #include "chat.h"
 
-#define S_BUFSIZE POST_BUFSIZE /* 送信バッファサイズ */
-#define R_BUFSIZE MESG_BUFSIZE /* 受信バッファサイズ */
+#define S_BUFSIZE MESG_LEN+1 /* 送信バッファサイズ（発言メッセージ＋改行コード） */
+#define R_BUFSIZE MESG_BUFSIZE /* 受信バッファサイズ（MESGパケット） */
 
 /* クライアントのメッセージをサーバに送信する関数 */
 static int post_message(int sock, char *mesg);
@@ -9,7 +9,7 @@ static int post_message(int sock, char *mesg);
 void chat_client(struct sockaddr_in server_adrs, in_port_t port_number, char *username){
 
     int sock, strsize;
-    char s_buf[S_BUFSIZE], r_buf[R_BUFSIZE];
+    char s_buf[S_BUFSIZE], r_buf[R_BUFSIZE]; /* 送信バッファ、受信バッファ */
     fd_set mask, readfds;
     
     /* ソケットをSTREAMモードで作成する */
@@ -39,7 +39,11 @@ void chat_client(struct sockaddr_in server_adrs, in_port_t port_number, char *us
 
         if(FD_ISSET(sock, &readfds)){
             /* MESGパケットの受信と表示 */
-            strsize = Recv(sock, r_buf, R_BUFSIZE-1, 0);
+            if((strsize = Recv(sock, r_buf, R_BUFSIZE-1, 0)) == 0){
+                printf("Server is down:(\n");
+                close(sock);
+                return;
+            }
             r_buf[strsize] = '\0';
             if(strncmp(r_buf, "MESG", 4) == 0){
                 printf("%s\n", chop_nl(&(r_buf[5])));
@@ -48,7 +52,7 @@ void chat_client(struct sockaddr_in server_adrs, in_port_t port_number, char *us
 
         if(FD_ISSET(0, &readfds)){
             /* メッセージ（POSTまたはQUITパケット）の送信 */
-            fgets(s_buf, MESG_LEN+1, stdin);
+            fgets(s_buf, S_BUFSIZE, stdin);
             if(post_message(sock, chop_nl(s_buf)) == -1) return;
         }
     }
@@ -57,17 +61,17 @@ void chat_client(struct sockaddr_in server_adrs, in_port_t port_number, char *us
 
 static int post_message(int sock, char *mesg)
 {
-    char post_message[S_BUFSIZE];
+    char post_message[POST_BUFSIZE]; /* POSTパケットの送信バッファ */
 
     if(strcmp(mesg, "QUIT") == 0){
         /* QUITパケットの送信 */
-        Send(sock, "QUIT", 5, 0);
+        Send(sock, "QUIT", 4, 0);
         close(sock);
         return (-1);
     }
     else{
         /* POSTパケットの送信 */
-        snprintf(post_message, S_BUFSIZE, "POST %s", mesg);
+        snprintf(post_message, POST_BUFSIZE, "POST %s", mesg);
         Send(sock, post_message, strlen(post_message), 0);
         return (0);
     }

@@ -12,7 +12,7 @@ extern int optind, opterr, optopt;
 int main(int argc, char *argv[])
 {
     struct sockaddr_in broadcast_adrs;
-    struct sockaddr_in from_adrs;
+    struct sockaddr_in server_adrs;
     socklen_t from_len;
 
     int sock;
@@ -65,31 +65,31 @@ int main(int argc, char *argv[])
     FD_ZERO(&mask);
     FD_SET(sock, &mask);
 
-    for(i = 0;(i < 3) && (mode != 'C');i++){
+    for( i = 0; i < 3 ; i++){
         /* 「HELO」パケットを待ち受けポートに対してブロードキャストする（最大3回送信） */
         Sendto(sock, "HELO", 4, 0, (struct sockaddr *)&broadcast_adrs, sizeof(broadcast_adrs) );
-        printf("----------");
-        fflush(stdout);
 
-        for(;;){
-            /* 受信データの有無をチェック */
-            readfds = mask;
-            timeout.tv_sec = 2;
-            timeout.tv_usec = 5;
-            
-            if( select( sock+1, &readfds, NULL, NULL, &timeout)==0 ) break;
+        /* 受信データの有無をチェック */
+        readfds = mask;
+        timeout.tv_sec = 8;
+        timeout.tv_usec = 0;
+        
+        if( select( sock+1, &readfds, NULL, NULL, &timeout)==0 ){
+            printf("----------");
+            fflush(stdout);
+            continue;
+        }
 
-            /* 「HERE」パケットの受信 */
-            from_len = sizeof(from_adrs);
-            strsize = Recvfrom(sock, r_buf, BUFSIZE-1, 0, (struct sockaddr *)&from_adrs, &from_len);
-            r_buf[strsize] = '\0';
-            printf("\nINFO Connected to Server [%s]\n",inet_ntoa(from_adrs.sin_addr));
+        /* 「HERE」パケットの受信 */
+        from_len = sizeof(server_adrs);
+        strsize = Recvfrom(sock, r_buf, BUFSIZE-1, 0, (struct sockaddr *)&server_adrs, &from_len);
+        r_buf[strsize] = '\0';
 
-            /* 「HERE」パケットを受信したら、クライアントとして動作する */
-            if(strcmp(r_buf,"HERE") == 0){
-                mode = 'C';
-                break;
-            }
+        /* 「HERE」パケットを受信したら、クライアントとして動作する */
+        if(strcmp(r_buf,"HERE") == 0){
+            printf("Connected to Server [%s]\n",inet_ntoa(server_adrs.sin_addr));
+            mode = 'C';
+            break;
         }
     }
 
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
     switch (mode)
     {
     case 'C':
-        chat_client(from_adrs, port_number, username);
+        chat_client(server_adrs, port_number, username);
         break;
     case 'S':
         printf("\nServer startup:)\n");

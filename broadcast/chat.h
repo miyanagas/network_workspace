@@ -4,7 +4,7 @@
 #include "mynet.h"
 #include <sys/select.h>
 
-#define MESG_LEN 489 /* 発言メッセージ文字列長（発言メッセージ488バイト以内） */
+#define MESG_LEN 488 /* 発言メッセージ長（発言メッセージ488バイト以内） */
 #define USERNAME_LEN 16 /* ユーザ名文字列長（ユーザ名15文字以内） */
 
 #define JOIN_BUFSIZE USERNAME_LEN+5 /* JOINパケットバッファサイズ */

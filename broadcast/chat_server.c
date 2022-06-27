@@ -14,7 +14,7 @@ typedef struct{
 static int N_client = 0; /* クライアント数 */
 static client_info *Client = NULL;  /* クライアント情報 */
 static int Max_sd = 0; /* ソケットディスクリプタ最大値 */
-static int Mask;
+static fd_set Mask;
 
 /* プライベート関数 */
 static void client_login(int sock); /* クライアントの情報を記録する（ログイン）関数 */
@@ -180,7 +180,7 @@ static void send_message(char *mesg, char *username, int post_client)
         if(client_id == post_client) continue;
         if(send(Client[client_id].sock, send_mesg, strlen(send_mesg), MSG_NOSIGNAL) == -1){
             if(errno == EPIPE){
-                if(Client[client_id] == Max_sd){
+                if(Client[client_id].sock == Max_sd){
                     Max_sd = 0;
                 }
                 FD_CLR(Client[client_id].sock, &Mask);
