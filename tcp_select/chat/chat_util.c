@@ -108,19 +108,12 @@ static int receive_message()
         strcat(send_message, Buf);
         chop_nl(Buf);
 
-        if(strcmp(Buf,"quit") == 0){
-          for(client_id_=0; client_id_<N_CLIENT; client_id_++){
-            Send(Client[client_id_].sock, "Bye", strlen("Bye"), 0);
-            close(Client[client_id_].sock);
+        for(client_id_=0; client_id_<N_CLIENT; client_id_++){
+          if(client_id_ != client_id){
+            Send(Client[client_id_].sock, send_message, strlen(send_message), 0);
+          }else{
+            //Send(Client[client_id_].sock, Buf, strlen(Buf), 0);
           }
-          free(Client);
-          return (-1);
-        }else{
-            for(client_id_=0; client_id_<N_CLIENT; client_id_++){
-                if(client_id_ != client_id){
-                    Send(Client[client_id_].sock, send_message, strlen(send_message), 0);
-                }
-            }
         }
       }
     }

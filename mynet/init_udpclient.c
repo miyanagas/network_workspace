@@ -12,8 +12,7 @@ int init_udpclient()
   return(sock);
 }
 
-void set_sockaddr_in(struct sockaddr_in *server_adrs, 
-		     char *servername, in_port_t port_number )
+void set_sockaddr_in(struct sockaddr_in *server_adrs, char *servername, in_port_t port_number )
 {
   struct hostent *server_host;
 

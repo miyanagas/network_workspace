@@ -44,8 +44,17 @@ void chat_client(char* servername, int port_number)
         close(sock);
         return;
       }
-      printf("%-s",r_buf);
-      fflush(stdout); /* バッファの内容を強制的に出力 */
+      // if(strncmp(r_buf,"[",1) != 0){
+      //   printf("\033[1A");
+      //   printf("\033[K");
+      //   printf("\033[32m");
+      //   printf("%s", r_buf);
+      //   printf("\033[39m");
+      // }
+      else{
+        printf("%s",r_buf);
+        fflush(stdout);
+      }
     }
   }
 }

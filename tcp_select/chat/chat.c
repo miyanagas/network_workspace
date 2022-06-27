@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
   /* オプション文字列の取得 */
   opterr = 0;
   while( 1 ){
-	  c = getopt(argc, argv, "SCs:p:c:h");
+	  c = getopt(argc, argv, "SCs:p:h");
 	  if( c == -1 ) break;
 	  
 	  switch( c ){
@@ -40,13 +40,10 @@ int main(int argc, char *argv[])
 	    port_number = atoi(optarg);
 	    break;
 
-	  case 'c':  /* クライアントの数 */
-	    break;
-
 	  case '?' :
 	    fprintf(stderr,"Unknown option '%c'\n", optopt );
 	  case 'h' :
-	    fprintf(stderr,"Usage(Server): %s -S -p port_number -c num_client\n", argv[0]);
+	    fprintf(stderr,"Usage(Server): %s -S -p port_number\n", argv[0]);
 	    fprintf(stderr,"Usage(Client): %s -C -s server_name -p port_number\n", argv[0]);
 	    exit(EXIT_FAILURE);
 	    break;
