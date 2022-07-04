@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 
         /* 受信データの有無をチェック */
         readfds = mask;
-        timeout.tv_sec = 8;
+        timeout.tv_sec = 2;
         timeout.tv_usec = 0;
         
         if( select( sock+1, &readfds, NULL, NULL, &timeout)==0 ){
