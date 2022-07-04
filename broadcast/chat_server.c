@@ -5,22 +5,23 @@
 #define R_BUFSIZE POST_BUFSIZE /* 受信バッファサイズ */
 
 /* 各クライアントのユーザ情報を格納する構造体の定義 */
-typedef struct{
+typedef struct client_tag {
   int  sock;
   char name[USERNAME_LEN];
+  struct client_tag *prev;
+  struct client_tag *next;
 } client_info;
 
 /* プライベート変数 */
-static int N_client = 0; /* クライアント数 */
-static client_info *Client = NULL;  /* クライアント情報 */
+static client_info *Client_header = NULL;  /* クライアント情報 */
 static int Max_sd = 0; /* ソケットディスクリプタ最大値 */
 static fd_set Mask;
 
 /* プライベート関数 */
 static void client_login(int sock); /* クライアントの情報を記録する（ログイン）関数 */
-static int receive_message(int sock, int post_client); /* クライアントからのメッセージを受信する関数 */
-static void client_logout(int logout_client); /* クライアントの情報を抹消する（ログアウト）関数 */
-static void send_message(char *mesg, char *username, int post_client); /* クライアントにメッセージを送信する関数 */
+static int receive_message(int sock, client_info *post_client); /* クライアントからのメッセージを受信する関数 */
+static void client_logout(client_info **logout_client); /* クライアントの情報を抹消する（ログアウト）関数 */
+static void send_message(char *mesg, char *username, client_info *post_client); /* クライアントにメッセージを送信する関数 */
 
 void chat_server(in_port_t port_number, char *my_username)
 {
@@ -31,7 +32,8 @@ void chat_server(in_port_t port_number, char *my_username)
     fd_set readfds;
 
     char buf[MESG_BUFSIZE];
-    int strsize, client_id;
+    int strsize;
+    client_info *p, **q;
 
     /* UDPサーバ初期化 */
     sock = init_udpserver(port_number);
@@ -68,31 +70,40 @@ void chat_server(in_port_t port_number, char *my_username)
             if(strcmp(buf, "HELO") == 0){
                 /* HEREパケットの送信 */
                 Sendto(sock, "HERE", 4, 0, (struct sockaddr *)&from_adrs, sizeof(from_adrs));
+                printf("recv HELO\n");
             }
         }
 
         if(FD_ISSET(sock_listen, &readfds)){
             /* クライアントの接続を受け付ける */
+            printf("ready Accept\n");
             sock_accepted = Accept(sock_listen, NULL, NULL);
+            printf("accepted\n");
             /* 新たに接続したしたクライアントのビットマスクのセット */
             FD_SET(sock_accepted, &Mask);
             client_login(sock_accepted);           
         }
 
-        for( client_id = 0; client_id < N_client; client_id++){
-            if(FD_ISSET(Client[client_id].sock, &readfds)){
-                /* クライアントのメッセージを受信 */
-                if( receive_message(Client[client_id].sock, client_id) == -1){
-                    client_logout(client_id);
-                    client_id--;
+        if(Client_header != NULL){
+            p = Client_header;
+            q = &Client_header;
+            while(p != NULL){
+                if(FD_ISSET(p->sock, &readfds)){
+                    /* クライアントのメッセージを受信 */
+                    if( receive_message(p->sock, p) == -1){
+                        client_logout(q);
+                        continue;
+                    }
                 }
+                p = p->next;
+                q = &((*q)->next);
             }
         }
 
         if(FD_ISSET(0, &readfds)){
             /* 自身のキーボードから入力したメッセージを全クライアントに送信 */
             fgets(buf, MESG_LEN+1, stdin);
-            send_message(chop_nl(buf), my_username, -1);
+            send_message(chop_nl(buf), my_username, NULL);
         }
 
     }
@@ -100,94 +111,102 @@ void chat_server(in_port_t port_number, char *my_username)
 
 static void client_login(int sock)
 {
-    char r_buf[JOIN_BUFSIZE];
-    int client_id, strsize;
+    client_info *new_client, *p, **q;
 
-    strsize=Recv(sock, r_buf, JOIN_BUFSIZE-1, 0);
-    r_buf[strsize]='\0';
-    if(strncmp(r_buf, "JOIN", 4) == 0){
-        N_client++;
-        client_id = N_client-1;
-        /* クライアント情報の保存用構造体の構築（拡張） */
-        if( (Client=(client_info *)realloc(Client, N_client*sizeof(client_info)))==NULL ){
-            exit_errmesg("realloc()");
+    if( (new_client=(client_info*)malloc(sizeof(client_info)))==NULL ){
+        exit_errmesg("malloc()");
+    }
+    new_client->sock = sock;
+    strncpy(new_client->name, "\0", USERNAME_LEN);
+    new_client->prev = NULL;
+    new_client->next = NULL;
+
+    if(Client_header == NULL){
+        Client_header = new_client;
+    }
+    else{
+        for( p = Client_header, q = &Client_header; p != NULL; p = p->next, q = &((*q)->next) ){
+            if(sock <= p->sock){
+                new_client->next = p->next;
+                p->next = new_client;
+            }else{
+                new_client->next = p;
+                *q = new_client;
+            }
         }
-        /* クライアント情報の記録 */
-        Client[client_id].sock = sock;
-        strncpy(Client[client_id].name, &(r_buf[5]), USERNAME_LEN);
-
-        if(sock > Max_sd){
-            Max_sd = sock;
+        if(p == NULL){
+            *q = new_client;
         }
     }
 
+    Max_sd = Client_header->sock;
+
 }
 
-static int receive_message(int sock, int post_client)
+static int receive_message(int sock, client_info *post_client)
 {
 
     char r_buf[R_BUFSIZE];
-    int strsize, client_id;
+    int strsize;
+    client_info *pos;
 
     strsize=Recv(sock, r_buf, R_BUFSIZE-1, 0);
     r_buf[strsize]='\0';
     if(strcmp(r_buf, "QUIT") == 0){
         /* クライアントとの接続を終了 */
-        if(sock == Max_sd){
-            Max_sd = 0;
-        }
         FD_CLR(sock, &Mask);
         close(sock);
         return (-1);
     }
     else if(strncmp(r_buf, "POST", 4) == 0){
         /* 他のクライアントにメッセージを送信 */
-        send_message(&(r_buf[5]), Client[post_client].name, post_client);
-        printf("[%s]%s\n", Client[post_client].name, chop_nl(&(r_buf[5])));
+        send_message(&(r_buf[5]), post_client->name, post_client);
+        printf("[%s]%s\n", post_client->name, chop_nl(&(r_buf[5])));
+    }
+    else if(strncmp(r_buf, "JOIN", 4) == 0){
+        for( pos = Client_header; pos != NULL ; pos = pos->next ){
+            if(pos->sock == sock){
+                strncpy(pos->name, &(r_buf[5]), USERNAME_LEN);
+                printf("join\n");
+            }
+        }
     }
 
     return (0);
 }
 
-static void client_logout(int logout_client)
+static void client_logout(client_info **logout_client)
 {
-    int client_id;
+    client_info *temp;
 
-    N_client--;
+    temp = (*logout_client)->next;
+    (*logout_client) = temp;
+    free(temp);
 
-    for( client_id = 0; client_id < N_client; client_id++){
-        if(client_id >= logout_client){
-            Client[client_id].sock = Client[client_id+1].sock;
-            strncpy(Client[client_id].name, Client[client_id+1].name, USERNAME_LEN);
-        }
-        if(Client[client_id].sock > Max_sd){
-            Max_sd = Client[client_id].sock;
-        }
-    }
-
-    Client[client_id].sock = 0;
-    strncpy(Client[client_id].name, "\0", USERNAME_LEN);
+    Max_sd = Client_header->sock;
 
 }
 
-static void send_message(char *mesg, char *username, int post_client)
+static void send_message(char *mesg, char *username, client_info *post_client)
 {
     char send_mesg[S_BUFSIZE];
-    int client_id;
+    client_info *p, **q;
 
     snprintf(send_mesg, S_BUFSIZE, "MESG [%s]%s", username, mesg);
-    for(client_id = 0; client_id < N_client; client_id++){
-        if(client_id == post_client) continue;
-        if(send(Client[client_id].sock, send_mesg, strlen(send_mesg), MSG_NOSIGNAL) == -1){
-            if(errno == EPIPE){
-                if(Client[client_id].sock == Max_sd){
-                    Max_sd = 0;
+    p = Client_header;
+    q = &Client_header;
+    while(p != NULL){
+        if(p != post_client){
+            if(send(p->sock, send_mesg, strlen(send_mesg), MSG_NOSIGNAL) == -1){
+                if(errno == EPIPE){
+                    FD_CLR(p->sock, &Mask);
+                    client_logout(q);
+                    continue;
                 }
-                FD_CLR(Client[client_id].sock, &Mask);
-                client_logout(client_id);
-                client_id--;
             }
         }
+        p = p->next;
+        q = &((*q)->next);
     }
 
 }
