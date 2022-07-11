@@ -1,3 +1,7 @@
+/*====================================================
+ *    chat_client.c
+ *    20122055 Miyanaga Shota
+ *==================================================*/
 #include "chat.h"
 
 #define S_BUFSIZE MESG_LEN /* 送信バッファサイズ（発言メッセージ） */
@@ -13,14 +17,16 @@ void chat_client(struct sockaddr_in server_adrs, in_port_t port_number, char *us
     fd_set mask, readfds;
     
     /* ソケットをSTREAMモードで作成する */
-    if((sock = socket(PF_INET, SOCK_STREAM, 0)) == -1){
+    if( (sock=socket(PF_INET, SOCK_STREAM, 0))==-1 ){
         exit_errmesg("sock()");
     }
 
     /* ソケットにサーバの情報を対応づけてサーバに接続する */
-    if(connect(sock, (struct sockaddr *)&server_adrs, sizeof(server_adrs))== -1){
+    if( connect(sock, (struct sockaddr *)&server_adrs, sizeof(server_adrs))==-1 ){
         exit_errmesg("connect()");
     }
+
+    printf("Connected to Sever:)\n");
 
     /* ユーザの参加をサーバに知らせる */
     snprintf(s_buf, JOIN_BUFSIZE, "JOIN %s", username);
@@ -35,25 +41,29 @@ void chat_client(struct sockaddr_in server_adrs, in_port_t port_number, char *us
         /* 受信データの有無をチェック */
         readfds = mask;
         
-        select( sock+1, &readfds, NULL, NULL, NULL );
+        if( select( sock+1, &readfds, NULL, NULL, NULL )==-1 ){
+            exit_errmesg("select()");
+        }
 
         if(FD_ISSET(sock, &readfds)){
             /* MESGパケットの受信と表示 */
-            if((strsize = Recv(sock, r_buf, R_BUFSIZE-1, 0)) == 0){
+            if( (strsize=Recv(sock, r_buf, R_BUFSIZE-1, 0))==0 ){
                 printf("Server is down:(\n");
                 close(sock);
                 return;
             }
             r_buf[strsize] = '\0';
-            if(strncmp(r_buf, "MESG", 4) == 0){
+            if( strncmp(r_buf, "MESG", 4) == 0 ){
                 printf("%s\n", chop_nl(&(r_buf[5])));
             }
         }
 
         if(FD_ISSET(0, &readfds)){
             /* メッセージ（POSTまたはQUITパケット）の送信 */
-            fgets(s_buf, S_BUFSIZE, stdin);
-            if(post_message(sock, chop_nl(s_buf)) == -1) return;
+            if( fgets(s_buf, S_BUFSIZE, stdin)==NULL ){
+                exit_errmesg("fgets()");
+            }
+            if( post_message(sock, chop_nl(s_buf))==-1 ) return;
         }
     }
     
@@ -63,9 +73,10 @@ static int post_message(int sock, char *mesg)
 {
     char post_message[POST_BUFSIZE]; /* POSTパケットの送信バッファ */
 
-    if(strcmp(mesg, "QUIT") == 0){
+    if( strcmp(mesg, "QUIT") == 0 ){
         /* QUITパケットの送信 */
         Send(sock, "QUIT", 4, 0);
+        printf("Bye Bye:)\n");
         close(sock);
         return (-1);
     }

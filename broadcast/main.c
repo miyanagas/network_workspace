@@ -1,4 +1,5 @@
 /*====================================================
+ *    main.c
  *    20122055 Miyanaga Shota
  *==================================================*/
 #include "chat.h"
@@ -88,7 +89,7 @@ int main(int argc, char *argv[])
 
         /* 「HERE」パケットを受信したら、クライアントとして動作する */
         if(strcmp(r_buf,"HERE") == 0){
-            printf("\nConnected to Server [%s]\n",inet_ntoa(server_adrs.sin_addr));
+            printf("\nServer is here[%s]\n",inet_ntoa(server_adrs.sin_addr));
             mode = 'C';
             break;
         }

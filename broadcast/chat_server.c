@@ -1,3 +1,7 @@
+/*====================================================
+ *    chat_server.c
+ *    20122055 Miyanaga Shota
+ *==================================================*/
 #include "chat.h"
 #include <errno.h>
 
@@ -69,7 +73,7 @@ void chat_server(in_port_t port_number, char *my_username)
             Max_sd = large_sd;
         }
         
-        if( select(Max_sd+1, &readfds, NULL, NULL, NULL)==0 ){
+        if( select(Max_sd+1, &readfds, NULL, NULL, NULL)==-1 ){
             exit_errmesg("select()");
         }
 
@@ -104,7 +108,9 @@ void chat_server(in_port_t port_number, char *my_username)
 
         if(FD_ISSET(0, &readfds)){
             /* 自身のキーボードから入力したメッセージを全クライアントに送信 */
-            fgets(buf, MESG_LEN, stdin);
+            if( fgets(buf, MESG_LEN, stdin)==NULL ){
+                exit_errmesg("fgets()");
+            }
             send_message(chop_nl(buf), my_username, NULL);
         }
 
@@ -146,11 +152,11 @@ static void client_login(int sock)
 static int receive_message(int sock, client_info *post_client)
 {
 
-    char r_buf[R_BUFSIZE];
+    char r_buf[R_BUFSIZE], s_buf[S_BUFSIZE];
     int strsize;
     client_info *pos;
 
-    strsize=Recv(sock, r_buf, R_BUFSIZE-1, 0);
+    strsize = Recv(sock, r_buf, R_BUFSIZE-1, 0);
     r_buf[strsize]='\0';
     chop_nl(r_buf);
     if( strcmp(r_buf, "QUIT") == 0 || strsize == 0 ){
@@ -167,9 +173,11 @@ static int receive_message(int sock, client_info *post_client)
         for( pos = Client_header->next; pos != NULL ; pos = pos->next ){
             if( pos->sock == sock ){
                 /* クライアントのユーザ名情報の追加 */
-                strncpy(pos->name, &(r_buf[5]), USERNAME_LEN-1);
-                (pos->name)[USERNAME_LEN] = '\0';
-                printf("[INFO] join %s!\n",pos->name);
+                snprintf(pos->name, USERNAME_LEN, "%s", &(r_buf[5]));
+                /* ログインしたユーザを通知 */
+                snprintf(s_buf, S_BUFSIZE, " join %s!", pos->name);
+                printf("[INFO]%s\n", s_buf);
+                send_message(s_buf, "INFO", pos);
                 break;
             }
         }
@@ -180,9 +188,9 @@ static int receive_message(int sock, client_info *post_client)
 
 static void client_logout(client_info *before_logout_client, client_info *logout_client)
 {
-    N_client--;
-    printf("[INFO] %s leave...\n", logout_client->name);
-    printf("[INFO] online_user %d\n", N_client);
+    char s_buf[S_BUFSIZE];
+
+    snprintf(s_buf, S_BUFSIZE, " %s leave...", logout_client->name);
     /* 接続終了したクライアントのビットマスクのリセット */
     FD_CLR(logout_client->sock, &Mask);
 
@@ -194,6 +202,12 @@ static void client_logout(client_info *before_logout_client, client_info *logout
     }else{
         Max_sd = 0;
     }
+
+    /* ログアウトしたユーザを通知 */
+    N_client--;
+    printf("[INFO]%s\n", s_buf);
+    send_message(s_buf, "INFO", NULL);
+    printf("[INFO] online_user %d\n", N_client);
 
 }
 
