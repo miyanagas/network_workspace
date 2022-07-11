@@ -13,9 +13,9 @@ typedef struct client_tag {
 
 /* プライベート変数 */
 static client_info *Client_header = NULL;  /* クライアント情報 */
-static int N_client = 0;
+static int N_client = 0; /* クライアント数 */
 static int Max_sd = 0; /* ソケットディスクリプタ最大値 */
-static fd_set Mask;
+static fd_set Mask; /* セレクトビットマスク */
 
 /* プライベート関数 */
 static void client_login(int sock); /* クライアントの情報を記録する（ログイン）関数 */
@@ -27,29 +27,38 @@ void chat_server(in_port_t port_number, char *my_username)
 {
     struct sockaddr_in from_adrs;
     socklen_t from_len;
-    int sock, sock_listen, sock_accepted;
-    int large_sd;
+    int udp_sock, tcp_sock, sock_accepted;
     fd_set readfds;
+    struct timeval timeout;
 
-    char buf[MESG_BUFSIZE];
-    int strsize;
+    char buf[MESG_LEN];
+    int large_sd, strsize;
     client_info *before_ptr, *after_ptr;
 
+    /* クライアント情報を保存する線形リストのダミー先頭要素 */
+    if( (Client_header=(client_info*)malloc(sizeof(client_info)))==NULL ){
+        exit_errmesg("malloc()");
+    }
+    strncpy(Client_header->name, "", USERNAME_LEN);
+    Client_header->sock = 0;
+    Client_header->next = NULL;
+
     /* UDPサーバ初期化 */
-    sock = init_udpserver(port_number);
+    udp_sock = init_udpserver(port_number);
 
     /* TCPサーバ初期化 */
-    sock_listen = init_tcpserver(port_number, 5);
+    tcp_sock = init_tcpserver(port_number, 5);
 
     /* ビットマスクの準備 */
     FD_ZERO(&Mask);
     FD_SET(0, &Mask);
-    FD_SET(sock, &Mask);
-    FD_SET(sock_listen, &Mask);
+    FD_SET(udp_sock, &Mask);
+    FD_SET(tcp_sock, &Mask);
 
-    large_sd = sock;
-    if(sock_listen > large_sd){
-        large_sd = sock_listen;
+    if(tcp_sock > udp_sock){
+        large_sd = tcp_sock;
+    }else{
+        large_sd = udp_sock;
     }
 
     for(;;){
@@ -60,47 +69,42 @@ void chat_server(in_port_t port_number, char *my_username)
             Max_sd = large_sd;
         }
         
-        select(Max_sd+1, &readfds, NULL, NULL, NULL);
+        if( select(Max_sd+1, &readfds, NULL, NULL, NULL)==0 ){
+            exit_errmesg("select()");
+        }
 
-        if(FD_ISSET(sock, &readfds)){
+        if(FD_ISSET(udp_sock, &readfds)){
             /* HELOパケットの受信 */
             from_len = sizeof(from_adrs);
-            strsize = Recvfrom(sock, buf, 4, 0, (struct sockaddr *)&from_adrs, &from_len);
+            strsize = Recvfrom(udp_sock, buf, 4, 0, (struct sockaddr *)&from_adrs, &from_len);
             buf[strsize] = '\0';
-            if(strcmp(buf, "HELO") == 0){
+            if( strcmp(buf, "HELO") == 0 ){
                 /* HEREパケットの送信 */
-                Sendto(sock, "HERE", 4, 0, (struct sockaddr *)&from_adrs, sizeof(from_adrs));
+                Sendto(udp_sock, "HERE", 4, 0, (struct sockaddr *)&from_adrs, sizeof(from_adrs));
             }
         }
 
-        if(FD_ISSET(sock_listen, &readfds)){
+        if(FD_ISSET(tcp_sock, &readfds)){
             /* クライアントの接続を受け付ける */
-            sock_accepted = Accept(sock_listen, NULL, NULL);
-            /* 新たに接続したしたクライアントのビットマスクのセット */
-            client_login(sock_accepted);           
+            sock_accepted = Accept(tcp_sock, NULL, NULL);
+            /* クライアント情報（ユーザ名を除く）の追加 */
+            client_login(sock_accepted);
         }
 
-        if(Client_header != NULL){
-            for( before_ptr = Client_header, after_ptr = Client_header->next; after_ptr != NULL; before_ptr = after_ptr, after_ptr = after_ptr->next ){
-                if(FD_ISSET(after_ptr->sock, &readfds)){
-                    /* クライアントのメッセージを受信 */
-                    if( receive_message(after_ptr->sock, after_ptr) == -1){
-                        client_logout(before_ptr, after_ptr);
-                        after_ptr = before_ptr;
-                    }
-                }
-            }
-
-            if(FD_ISSET(Client_header->sock, &readfds)){
-                if( receive_message(Client_header->sock, Client_header) == -1){
-                    client_logout(NULL, Client_header);
+        for( before_ptr = Client_header, after_ptr = Client_header->next; after_ptr != NULL; before_ptr = after_ptr, after_ptr = after_ptr->next ){
+            if(FD_ISSET(after_ptr->sock, &readfds)){
+                /* クライアントからメッセージを受信 */
+                if( receive_message(after_ptr->sock, after_ptr)==-1 ){
+                    /* クライアント情報の削除 */
+                    client_logout(before_ptr, after_ptr);
+                    after_ptr = before_ptr;
                 }
             }
         }
 
         if(FD_ISSET(0, &readfds)){
             /* 自身のキーボードから入力したメッセージを全クライアントに送信 */
-            fgets(buf, MESG_LEN+1, stdin);
+            fgets(buf, MESG_LEN, stdin);
             send_message(chop_nl(buf), my_username, NULL);
         }
 
@@ -117,33 +121,24 @@ static void client_login(int sock)
     new_client->sock = sock;
     strncpy(new_client->name, "unknown", USERNAME_LEN);
 
-    if(Client_header == NULL){
-        Client_header = new_client;
-        new_client->next = NULL;
-        Max_sd = sock;
-    }
-    else{
-        if(sock > Client_header->sock){
-            new_client->next = Client_header;
-            Client_header = new_client;
-            Max_sd = sock;
-        }
-        for( before_ptr = Client_header, after_ptr = Client_header->next; after_ptr != NULL; before_ptr = after_ptr, after_ptr = after_ptr->next ){
-            if(sock > after_ptr->sock){
-                before_ptr->next = new_client;
-                new_client->next = after_ptr;
-                break;
-            }
-        }
-        if(after_ptr == NULL){
+    for( before_ptr = Client_header, after_ptr = Client_header->next; after_ptr != NULL; before_ptr = after_ptr, after_ptr = after_ptr->next ){
+        if(sock > after_ptr->sock){
             before_ptr->next = new_client;
-            new_client->next = NULL;
+            new_client->next = after_ptr;
+            break;
         }
     }
+    if(after_ptr == NULL){
+        before_ptr->next = new_client;
+        new_client->next = NULL;
+    }
+
+    Max_sd = (Client_header->next)->sock;
 
     N_client++;
     printf("[INFO] user join!\n");
     printf("[INFO] online_user %d\n", N_client);
+    /* 新たに接続したしたクライアントのビットマスクのセット */
     FD_SET(sock, &Mask);
 
 }
@@ -157,21 +152,24 @@ static int receive_message(int sock, client_info *post_client)
 
     strsize=Recv(sock, r_buf, R_BUFSIZE-1, 0);
     r_buf[strsize]='\0';
-    if(strcmp(r_buf, "QUIT") == 0){
+    chop_nl(r_buf);
+    if( strcmp(r_buf, "QUIT") == 0 || strsize == 0 ){
         /* クライアントとの接続を終了 */
         close(sock);
         return (-1);
     }
-    else if(strncmp(r_buf, "POST", 4) == 0){
+    else if( strncmp(r_buf, "POST", 4) == 0 ){
         /* 他のクライアントにメッセージを送信 */
         send_message(&(r_buf[5]), post_client->name, post_client);
-        printf("[%s]%s\n", post_client->name, chop_nl(&(r_buf[5])));
+        printf("[%s]%s\n", post_client->name, &(r_buf[5]));
     }
-    else if(strncmp(r_buf, "JOIN", 4) == 0){
-        for( pos = Client_header; pos != NULL ; pos = pos->next ){
-            if(pos->sock == sock){
+    else if( strncmp(r_buf, "JOIN", 4) == 0 ){
+        for( pos = Client_header->next; pos != NULL ; pos = pos->next ){
+            if( pos->sock == sock ){
+                /* クライアントのユーザ名情報の追加 */
                 strncpy(pos->name, &(r_buf[5]), USERNAME_LEN-1);
                 (pos->name)[USERNAME_LEN] = '\0';
+                printf("[INFO] join %s!\n",pos->name);
                 break;
             }
         }
@@ -182,22 +180,20 @@ static int receive_message(int sock, client_info *post_client)
 
 static void client_logout(client_info *before_logout_client, client_info *logout_client)
 {
-    FD_CLR(logout_client->sock, &Mask);
     N_client--;
-    printf("[INFO] user leave...\n");
+    printf("[INFO] %s leave...\n", logout_client->name);
     printf("[INFO] online_user %d\n", N_client);
+    /* 接続終了したクライアントのビットマスクのリセット */
+    FD_CLR(logout_client->sock, &Mask);
 
-    if(before_logout_client == NULL){
-        Client_header = logout_client->next;
-        if(Client_header != NULL){
-            Max_sd = Client_header->sock;
-        }
-    }
-    else{
-        before_logout_client->next = logout_client->next;
-    }
-
+    before_logout_client->next = logout_client->next;
     free(logout_client);
+
+    if( Client_header->next != NULL ){
+        Max_sd = (Client_header->next)->sock;
+    }else{
+        Max_sd = 0;
+    }
 
 }
 
@@ -209,22 +205,16 @@ static void send_message(char *mesg, char *username, client_info *post_client)
     snprintf(send_mesg, S_BUFSIZE, "MESG [%s]%s", username, mesg);
     
     for( before_ptr = Client_header, after_ptr = Client_header->next; after_ptr != NULL; before_ptr = after_ptr, after_ptr = after_ptr->next ){
-        if(after_ptr != post_client){
-            if(send(after_ptr->sock, send_mesg, strlen(send_mesg), MSG_NOSIGNAL) == -1){
-                if(errno == EPIPE){
+        if( after_ptr != post_client ){
+            if( send(after_ptr->sock, send_mesg, strlen(send_mesg), MSG_NOSIGNAL)==-1 ){
+                if( errno == EPIPE ){
+                    /* 接続が切れたクライアント情報の削除 */
                     close(after_ptr->sock);
                     client_logout(before_ptr, after_ptr);
                     after_ptr = before_ptr;
+                }else{
+                    exit_errmesg("send()");
                 }
-            }
-        }
-    }
-
-    if(Client_header != post_client){
-        if(send(Client_header->sock, send_mesg, strlen(send_mesg), MSG_NOSIGNAL) == -1){
-            if(errno == EPIPE){
-                close(Client_header->sock);
-                client_logout(NULL, Client_header);
             }
         }
     }

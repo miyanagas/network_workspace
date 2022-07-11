@@ -1,6 +1,6 @@
 #include "chat.h"
 
-#define S_BUFSIZE MESG_LEN+1 /* 送信バッファサイズ（発言メッセージ＋改行コード） */
+#define S_BUFSIZE MESG_LEN /* 送信バッファサイズ（発言メッセージ） */
 #define R_BUFSIZE MESG_BUFSIZE /* 受信バッファサイズ（MESGパケット） */
 
 /* クライアントのメッセージをサーバに送信する関数 */

@@ -71,17 +71,15 @@ int main(int argc, char *argv[])
     for( i = 0; i < 3 ; i++){
         /* 「HELO」パケットを待ち受けポートに対してブロードキャストする（最大3回送信） */
         Sendto(sock, "HELO", 4, 0, (struct sockaddr *)&broadcast_adrs, sizeof(broadcast_adrs) );
+        printf("----------");
+        fflush(stdout);
 
         /* 受信データの有無をチェック */
         readfds = mask;
-        timeout.tv_sec = 2;
+        timeout.tv_sec = 7;
         timeout.tv_usec = 0;
         
-        if( select( sock+1, &readfds, NULL, NULL, &timeout)==0 ){
-            printf("----------");
-            fflush(stdout);
-            continue;
-        }
+        if( select( sock+1, &readfds, NULL, NULL, &timeout)==0 ) continue;
 
         /* 「HERE」パケットの受信 */
         from_len = sizeof(server_adrs);
@@ -90,7 +88,7 @@ int main(int argc, char *argv[])
 
         /* 「HERE」パケットを受信したら、クライアントとして動作する */
         if(strcmp(r_buf,"HERE") == 0){
-            printf("Connected to Server [%s]\n",inet_ntoa(server_adrs.sin_addr));
+            printf("\nConnected to Server [%s]\n",inet_ntoa(server_adrs.sin_addr));
             mode = 'C';
             break;
         }
